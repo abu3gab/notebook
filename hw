@@ -1,0 +1,153 @@
+
+In [ ]:
+
+import numpy as np
+%matplotlib inline
+np.set_printoptions(precision=3) # So printed matrices aren't huge
+np.set_printoptions(suppress=True) # Don't use scientific notation
+
+QR Factorization by the Gram-Schmidt algorithm
+
+Let's look at the accuracy of the classical and modified Gram-Schmidt algorithms (see, e.g. Trefethen & Bau lecture 7). Here is an implementation of the classical Gram-Schmidt algorithm; notice that it uses more storage than necessary.
+In [ ]:
+
+def clgs(A):
+    "QR factorization by the classical Gram-Schmidt algorithm."
+    n = A.shape[1] # Number of columns of A
+    R = np.zeros([n,n])
+    V = np.zeros(A.shape)
+    Q = np.zeros(A.shape)
+    
+    for j in range(n):      # loop over columns of R
+        V[:,j] = A[:,j]
+        for i in range(j):  # Make jth column of V orthogonal to ith column of Q
+            R[i,j] = np.dot(Q[:,i].T,A[:,j])
+            V[:,j] = V[:,j] - R[i,j]*Q[:,i]
+        
+        R[j,j] = np.linalg.norm(V[:,j],2)
+        Q[:,j] = V[:,j]/R[j,j]             # Normalize jth column of V to get jth column of Q
+    
+    return Q, R
+
+Now, we'll generate a random $4 \times 4$ matrix:
+In [ ]:
+
+n = 4
+A = np.random.rand(n,n)
+
+Let's factor it:
+In [ ]:
+
+Q, R = clgs(A)
+print('Q =')
+print(Q)
+print('R =')
+print(R)
+
+Clearly $R$ is upper triangular. Is $Q$ unitary? We can check by computing $I-Q^T Q$, which should be zero:
+In [ ]:
+
+print(np.max(np.abs(np.dot(Q.T,Q)-np.eye(n))))
+
+Not bad. We can also check our factorization by computing $QR-A$:
+In [ ]:
+
+print(np.max(np.abs(np.dot(Q,R)-A)))
+
+That looks pretty good.
+Instability of classical Gram-Schmidt
+
+Now let's try it on a different matrix. The function below sets up a Hilbert matrix; these matrices are notoriously ill-conditioned (i.e., close to singular).
+In [ ]:
+
+def Hilbert(n):
+    """Return the n x n Hilbert matrix."""
+    A = np.zeros([n,n])
+    for i in range(n):
+        for j in range(n):
+            A[i,j] = 1./(i+j+1)
+    return A
+
+Now let's set up and factor a modest-sized Hilbert matrix:
+In [ ]:
+
+n = 10
+H = Hilbert(n)
+print(H)
+
+In [ ]:
+
+Q, R = clgs(H)
+
+How good is our factorization? Let's check.
+In [ ]:
+
+print('QR-H')
+print(np.max(np.abs(np.dot(Q,R)-H)))
+print("Q*Q-I")
+print(np.max(np.abs(np.dot(Q.T,Q)-np.eye(n))))
+
+Whoa! We still have an accurate factorization of $A$, but $Q$ isn't even close to orthogonal:
+In [ ]:
+
+print(np.dot(Q.T,Q)-np.eye(n))
+
+Modified Gram-Schmidt (to the rescue!)
+
+Let's try the modified algorithm on the same Hilbert matrix. Here is the modified algorithm (again, using more storage than necessary):
+In [ ]:
+
+def mgs(A):
+    "QR factorization by the modified Gram-Schmidt algorithm."
+    n = A.shape[1]
+    R = np.zeros([n,n])
+    V = np.zeros(A.shape)
+    Q = np.zeros(A.shape)
+    for i in range(n):
+        V[:,i] = A[:,i]
+    for i in range(n):
+        R[i,i] = np.linalg.norm(V[:,i],2)
+        Q[:,i] = V[:,i]/R[i,i]
+        for j in range(i,n):
+            R[i,j] = np.dot(Q[:,i].T,V[:,j])
+            V[:,j] = V[:,j] - R[i,j]*Q[:,i]
+    return Q, R
+
+In [ ]:
+
+Q2, R2 = mgs(H)
+
+How good is our factorization?
+In [ ]:
+
+print('QR-H')
+print(np.max(abs(np.dot(Q2,R2)-H)))
+print("Q*Q-I")
+print(np.max(abs(np.dot(Q2.T,Q2)-np.eye(n))))
+
+The orthogonality of $Q$ is far from perfect, but much better than what we got from the classical algorithm.
+
+We can also see the inaccuracy of cGS if we look at the diagonal entries of $R$, which approximate the singular values of $A$ (see Trefethen & Bau lecture 9):
+In [ ]:
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(8,4))
+plt.semilogy(np.diag(R),'r',linewidth=3)
+plt.hold(True)
+plt.semilogy(np.diag(R2),'ok');
+plt.legend(('Classical','Modified'));
+plt.title('Diagonal entries of R');
+
+Householder transformations are even better
+
+Numpy's built-in QR function uses Householder triangularization:
+In [ ]:
+
+Q3, R3 = np.linalg.qr(H)
+
+In [ ]:
+
+print(np.max(np.abs(np.dot(Q3,R3)-H)))
+print(np.max(np.abs(np.dot(Q3.T,Q3)-np.eye(n))))
+
+Impressive!
